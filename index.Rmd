@@ -1,0 +1,331 @@
+---
+title: "Horizon 2020 work programmes"
+subtitle: "An applicaton of some text mining methods"
+author: Jüri Lillemets
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: 
+  html_document:
+    theme: yeti
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+  
+```{r setup, include = F}
+# Settings
+knitr::opts_chunk$set(include = T, eval = T, echo = F, 
+                      message = F, warning = F, error = F, 
+                      fig.height = 10, fig.width = 10, dpi = 75)
+# Set working directory
+setwd('/home/jrl/work/bioeastsup/horizon')
+# Load packages
+library('quanteda');library('quanteda.textmodels')
+library('topicmodels')
+library('wordcloud')
+library('igraph');library('ggraph')
+library('networkD3')
+# Load data
+load('corpus.Rda')
+```
+
+``` {r, include = F}
+# Define some things
+## Colors
+ClPr <- c('#15436E', '#307108', '#3499DC', '#88C32C', '#4F81BD', '#4BACC6', '#DBEEF4')
+#barplot(rep(1, length(ClPr)), names.arg = 1:length(ClPr), col = ClPr)
+## Wordcloud function
+plotWC <- function(words, freq, max = 200) {
+  wordcloud::wordcloud(words, freq, #scale = c(5,.2), 
+          random.order = F, 
+          random.color = F, 
+          max.words = max, min.freq = 1, 
+          rot.per = 0, 
+          fixed.asp = F,
+          colors = colorRampPalette(c(ClPr[c(3,4,2)]))(10), 
+          family = 'RobotoCondensed')
+}
+```
+
+Activities were collected from the documents on the addresses below.
+
+``` {r}
+Urls <- c('https://ec.europa.eu/research/participants/data/ref/h2020/wp/2014_2015/main/h2020-wp1415-food_en.pdf', 
+          'https://ec.europa.eu/research/participants/data/ref/h2020/wp/2016_2017/main/h2020-wp1617-food_en.pdf',
+          'https://ec.europa.eu/research/participants/data/ref/h2020/wp/2018-2020/main/h2020-wp1820-food_en.pdf')
+Urls
+```
+
+All words were stemmed, so that only stems of words and not the original words are shown. Compounds were generated from two or more words that often occurred together, here separated by an underscore (*_*).
+
+#### Names of activities
+
+``` {r}
+names(Corp) %>% sub('^.*\\d{4}:\\s', '', .) # Remove activity code
+```
+
+A wordcloud from these names is below, based on word frequencies.
+
+``` {r, fig.height = 8}
+names(Corp) %>% sub('^.*\\d{4}:\\s', '', .) %>% plotWC
+```
+
+#### List of call topics
+
+``` {r}
+Calls <- c("Bio-based innovation for sustainable goods and services...", 
+           "Blue Growth: Unlocking the potential of Seas and Oceans", 
+           "Food and Natural Resources", 
+           "Innovative, Sustainable and Inclusive Bioeconomy", 
+           "Rural Renaissance - Fostering innovation and business opportunities",
+           "Sustainable Food Security")
+paste(levels(Corp$call), " - ", Calls)
+```
+
+#### Number of calls by years
+
+``` {r}
+table(Corp$call, Corp$year) %>% addmargins
+```
+
+
+# Term frequency
+
+## Frequency of 50 most frequent terms
+
+``` {r}
+#head(textstat_frequency(dfMat))
+topfeatures(dfMat, 50) %>% sort %>% dotchart(xlab = "Frequency")
+```
+
+## Wordcloud of all terms
+
+``` {r}
+freqs <- textstat_frequency(dfMat)
+plotWC(freqs$feature, freqs$frequency)
+```
+
+## Wordcloud of unique terms
+
+Only 200 most unique terms (in terms of document mean TF-IDF).
+
+```{r}
+tfIdf <- dfm_trim(dfMat, min_termfreq = 2) %>% 
+  dfm_tfidf %>% as.matrix %>% apply(2, mean)
+#plotWC(names(tfIdf), tfIdf)
+uniTerm <- tfIdf %>% sort(decreasing = T) %>% names %>% head(200)
+with(freqs[freqs$feature %in% uniTerm, ], plotWC(feature, frequency))
+```
+
+## Wordclouds of all terms by calls
+
+```{r}
+for (i in levels(Corp$call)) {
+  print(Calls[match(i, levels(Corp$call))])
+  dfm_subset(dfMat, Corp$call == i) %>% textstat_frequency %>% 
+    with(plotWC(feature, frequency))
+}
+```
+
+# Keyness
+
+A positive value of keyness indicates that a term occurs more than expected in a target group compared to a reference group. Negative value indicates that it occurs less than expected. Here $\chi^{2}$ was chosen as the measure to estimate keyness.
+
+Target is the group printed above plots and reference group contains all other documents. Ten terms with most negative and ten terms with most positive keyness are depicted on the plots below. Negative values are in blue, positie in green.
+
+## By calls
+
+``` {r}
+for (i in levels(Corp$call)) {
+  textstat_keyness(dfMat, target = Corp$call == i, measure = 'chi2') %>% 
+    .[.$p < .05, ] %>% 
+    #.[.$chi2 %>% abs %>% order(decreasing = T) %>% head(20), ] %>% .[order(.$chi2), ] %>% # First 20 by absolute values
+    .[order(.$chi2), ] %>% with(rbind(head(., 10), tail(., 10))) %>% 
+    #with(barplot(chi2, names.arg = feature, horiz = T, las = 2))
+    with(dotchart(chi2, feature, #pt.cex = scale(n_target), 
+         color = ClPr[c(3,2)][(chi2 > 0) + 1], 
+         main = Calls[match(i, levels(Corp$call))]))
+}
+```
+
+## By years
+
+``` {r}
+for (i in levels(Corp$year)) {
+  textstat_keyness(dfMat, target = Corp$year == i, measure = 'chi2') %>% 
+    .[.$p < .05, ] %>% 
+    #.[.$chi2 %>% abs %>% order(decreasing = T) %>% head(20), ] %>% .[order(.$chi2), ] %>% # First 20 by absolute values
+    .[order(.$chi2), ] %>% with(rbind(head(., 10), tail(., 10))) %>% 
+    #with(barplot(chi2, names.arg = feature, horiz = T, las = 2))
+    with(dotchart(chi2, feature, #pt.cex = scale(n_target), 
+         color = ClPr[c(3,2)][(chi2 > 0) + 1],  
+         main = i))
+}
+```
+
+# Topic modelling
+
+## Latent Drichlet Allocation
+
+This is an algorithm that attempts to determine topics by defining a combination of words that would characterize each topic. 
+
+The algorithm was ran so that it would find six topics (since there are 6 categories for calls). 
+
+``` {r}
+ldaMod <- LDA(dfMat, k = 6)
+```
+
+We can observe how well model predicted topics for each activity coincides with calls related to each topic:
+
+``` {r}
+table(topics(ldaMod), Corp$call, dnn = c('predicted', 'actual'))
+```
+
+Below are six wordclouds describing each topic that LDA returned.
+
+``` {r}
+ldaTidy <- tidytext::tidy(ldaMod)
+par(mfrow = 2:3, mar = rep(0, 4))
+for (i in unique(ldaTidy$topic)) {
+  with(ldaTidy[ldaTidy$topic == i & ldaTidy$beta > 1e-3, ], 
+       plotWC(term, beta, max = 100))
+}
+```
+
+
+# Term correlations
+
+The network is based on Pearson's correlation between terms among documents.
+
+``` {r, fig.height = 16}
+corMat <- dfm_select(dfMat, max_nchar = 20) %>% dfm_trim(min_termfreq = 10) %>%
+  as.matrix %>% cor
+corMat[abs(corMat) < 0.6] <- 0
+grMat <- graph_from_adjacency_matrix(corMat, mode = 'undirected', weighted = T, diag = F) %>% induced_subgraph(degree(.) > 5)
+par(mar = rep(0,4))
+plot(grMat, layout = layout_with_fr, 
+     vertex.color = 'black', vertex.shape = 'circle', vertex.size = .5, 
+     vertex.label.cex = .8, vertex.label.color = 'black', 
+     vertex.label.family = 'RobotoCondensed', 
+     edge.color = 'gray', edge.width = edge_attr(grMat)$weight %>% scale)
+```
+
+An interactive network can be found [here](https://www.lillemets.ee/horizon/network).
+
+```{r, eval = F}
+# Does not work well.
+grD3 <- igraph_to_networkD3(grMat)
+grD3$nodes$group <- 1
+forceNetwork(grD3$links, grD3$nodes, NodeID = 'name', Group = 'group', 
+             charge = -100, opacityNoHover = .8, opacity = 1, zoom = T)
+```
+
+```{r, eval = F}
+# GGraph approach
+m <- dfm_trim(dfMat, min_termfreq = 10) %>% as.matrix %>% cor
+diag(m) <- 0
+m <- data.frame(row=rownames(m)[row(m)], col=colnames(m)[col(m)], corr=c(m))
+m <- m[m$corr > .65 & nchar(m$row) < 20 & nchar(m$col) < 20, ]
+graph_from_data_frame(m) %>% 
+  induced_subgraph(degree(.) > 5) %>% 
+  ggraph(layout = 'fr') +
+  geom_edge_link(aes(edge_alpha = corr), show.legend = F) +
+  geom_node_point() +
+  geom_node_text(aes(label = name, size = 6), show.legend = F, repel = T) +
+  theme_graph()
+```
+
+```{r, echo = F}
+m <- dfm_trim(dfMat, min_termfreq = 10) %>% as.matrix %>% cor
+diag(m) <- 0
+m <- data.frame(row=rownames(m)[row(m)], col=colnames(m)[col(m)], corr=c(m))
+m <- m[m$corr > .6 & nchar(m$row) < 20 & nchar(m$col) < 20, ]
+simpleNetwork(m, fontSize = 10, fontFamily = 'RobotoCondensed', 
+                         linkColour = ClPr[3], nodeColour = 'black', 
+                         opacity = 0.8, zoom = T) %>% 
+  saveNetwork('network.html', selfcontained = TRUE)
+```
+
+# Text statistics
+
+This section is not so relevant for investigating topics.
+
+## Length of texts
+
+``` {r}
+Ngrams <- tokens_ngrams(Toks, n = 2:4)
+par(mfrow = 1:2)
+plot(nsentence(Corp) ~ Corp$call, xlab = 'Call', ylab = 'Sentences')
+plot(nsentence(Corp) ~ Corp$year, xlab = 'Year', ylab = 'Sentences')
+```
+
+## Readability
+
+Flesch's Reading Ease Score (Flesch 1948)^[Flesch, R. (1948). A New Readability Yardstick. Journal of Applied Psychology, 32(3), 221.]. Based on number of words, syllabiles and average sentence length. Higher score indicatest that a given text is easier to read.
+
+``` {r}
+Corp$readability <- textstat_readability(Corp)[, 2]
+par(mfrow = 1:2)
+boxplot(Corp$readability ~ Corp$call, xlab = 'Call', ylab = 'Readability')
+boxplot(Corp$readability ~ Corp$year, xlab = 'Year', ylab = 'Readability')
+```
+
+## Lexical diversity
+
+Carroll's Corrected Type-Token Ratio.
+
+``` {r}
+lexDiv <- textstat_lexdiv(dfMat, measure = 'CTTR')[[2]]
+par(mfrow = 1:2)
+boxplot(lexDiv ~ Corp$call, ylim = c(0, max(lexDiv)), las = 2, 
+        xlab = 'Call', ylab = 'CTTR')
+boxplot(lexDiv ~ Corp$year, ylim = c(0, max(lexDiv)), las = 2, 
+        xlab = 'Year', ylab = 'CTTR')
+```
+
+## Sentiment
+
+``` {r}
+Sent <- tokens_lookup(Toks, dictionary =  data_dictionary_LSD2015[1:2]) %>% 
+  lapply(table) %>% do.call(rbind, .) %>% as.data.frame
+```
+
+### By call
+
+```{r}
+par(mfrow = 1:2)
+for (i in c('negative', 'positive')) {
+  boxplot(Sent[, i]/sapply(Toks, length) ~ Corp$call, 
+          xlab = 'Call', ylab = 'Words with the given sentiment, %', main = i)
+}
+```
+
+### By year
+
+```{r}
+par(mfrow = 1:2)
+for (i in c('negative', 'positive')) {
+  boxplot(Sent[, i]/sapply(Toks, length) ~ Corp$year, 
+          xlab = 'Year', ylab = 'Words with the given sentiment, %', main = i, 
+          las = 2)
+}
+```
+
+
+## Correspondence analysis
+
+Position of documents on a single dimension scale.
+
+``` {r, fig.height = 16}
+## Correspondence analysis
+caMod <- textmodel_ca(dfMat)
+caMod$rownames <- sub(':.*$', '', names(Corp))
+textplot_scale1d(caMod, groups = Corp$call)
+```
+
+## Position of words
+
+Position of word "sustain" in documents.
+
+``` {r}
+Toks[Corp$call == 'SFS'] %>% kwic(pattern = 'sustain') %>% textplot_xray
+```
