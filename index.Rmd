@@ -1,6 +1,6 @@
 ---
 title: "Horizon 2020 work programmes"
-subtitle: "An applicaton of some text mining methods"
+subtitle: "Some text mining"
 author: Jüri Lillemets
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output: 
@@ -55,7 +55,7 @@ Urls <- c('https://ec.europa.eu/research/participants/data/ref/h2020/wp/2014_201
 Urls
 ```
 
-All words were stemmed, so that only stems of words and not the original words are shown. Compounds were generated from two or more words that often occurred together, here separated by an underscore (*_*).
+All words were stemmed, so that only stems of words and not the original words are shown (e.g. *sustainable* -> *sustain*). Stopwords were removed. Compounds were constructed from two or more words that often occurred together, here separated by an underscore (e.g. *sustainability in agriculture* -> *sustain* and *agricultur* -> *sustain_agriculture*).
 
 #### Names of activities
 
@@ -106,7 +106,7 @@ plotWC(freqs$feature, freqs$frequency)
 
 ## Wordcloud of unique terms
 
-Only 200 most unique terms (in terms of document mean TF-IDF).
+Only 200 most unique terms (based on document mean TF-IDF).
 
 ```{r}
 tfIdf <- dfm_trim(dfMat, min_termfreq = 2) %>% 
@@ -164,9 +164,9 @@ for (i in levels(Corp$year)) {
 
 # Topic modelling
 
-## Latent Drichlet Allocation
+## Latent Dirichlet Allocation
 
-This is an algorithm that attempts to determine topics by defining a combination of words that would characterize each topic. 
+This is an algorithm that attempts to find topics and returns a combination of words that would characterize each topic. 
 
 The algorithm was ran so that it would find six topics (since there are 6 categories for calls). 
 
@@ -174,7 +174,7 @@ The algorithm was ran so that it would find six topics (since there are 6 catego
 ldaMod <- LDA(dfMat, k = 6)
 ```
 
-We can observe how well model predicted topics for each activity coincides with calls related to each topic:
+We can observe how do the six model predicted topics for each activity coincide with calls of each activity:
 
 ``` {r}
 table(topics(ldaMod), Corp$call, dnn = c('predicted', 'actual'))
@@ -208,8 +208,6 @@ plot(grMat, layout = layout_with_fr,
      vertex.label.family = 'RobotoCondensed', 
      edge.color = 'gray', edge.width = edge_attr(grMat)$weight %>% scale)
 ```
-
-An interactive network can be found [here](https://www.lillemets.ee/horizon/network).
 
 ```{r, eval = F}
 # Does not work well.
@@ -245,9 +243,11 @@ simpleNetwork(m, fontSize = 10, fontFamily = 'RobotoCondensed',
   saveNetwork('network.html', selfcontained = TRUE)
 ```
 
+An interactive network can be found [here](https://www.lillemets.ee/horizon/network).
+
 # Text statistics
 
-This section is not so relevant for investigating topics.
+This section is not so relevant for investigating topics. But why not.
 
 ## Length of texts
 
@@ -260,7 +260,7 @@ plot(nsentence(Corp) ~ Corp$year, xlab = 'Year', ylab = 'Sentences')
 
 ## Readability
 
-Flesch's Reading Ease Score (Flesch 1948)^[Flesch, R. (1948). A New Readability Yardstick. Journal of Applied Psychology, 32(3), 221.]. Based on number of words, syllabiles and average sentence length. Higher score indicatest that a given text is easier to read.
+Flesch's Reading Ease Score (Flesch 1948)^[Flesch, R. (1948). A New Readability Yardstick. Journal of Applied Psychology, 32(3), 221.] is based on number of words, syllabiles and average sentence length. Higher score indicates that a given text is easier to read.
 
 ``` {r}
 Corp$readability <- textstat_readability(Corp)[, 2]
@@ -283,6 +283,8 @@ boxplot(lexDiv ~ Corp$year, ylim = c(0, max(lexDiv)), las = 2,
 ```
 
 ## Sentiment
+
+Sentiment was determined using 2015 Lexicoder Sentiment Dictionary.
 
 ``` {r}
 Sent <- tokens_lookup(Toks, dictionary =  data_dictionary_LSD2015[1:2]) %>% 
@@ -321,7 +323,7 @@ caMod <- textmodel_ca(dfMat)
 caMod$rownames <- sub(':.*$', '', names(Corp))
 textplot_scale1d(caMod, groups = Corp$call)
 ```
-
+<!--
 ## Position of words
 
 Position of word "sustain" in documents.
@@ -329,3 +331,4 @@ Position of word "sustain" in documents.
 ``` {r}
 Toks[Corp$call == 'SFS'] %>% kwic(pattern = 'sustain') %>% textplot_xray
 ```
+-->
