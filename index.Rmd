@@ -1,6 +1,6 @@
 ---
 title: "Horizon 2020 work programmes"
-subtitle: "Some text mining"
+subtitle: "An application of some text mining techniques"
 author: Jüri Lillemets
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output: 
@@ -17,7 +17,7 @@ knitr::opts_chunk$set(include = T, eval = T, echo = F,
                       message = F, warning = F, error = F, 
                       fig.height = 10, fig.width = 10, dpi = 75)
 # Set working directory
-setwd('/home/jrl/work/bioeastsup/horizon')
+setwd('/home/jrl/work/bioeastsup/horizon2020')
 # Load packages
 library('quanteda');library('quanteda.textmodels')
 library('topicmodels')
@@ -243,7 +243,15 @@ simpleNetwork(m, fontSize = 10, fontFamily = 'RobotoCondensed',
   saveNetwork('network.html', selfcontained = TRUE)
 ```
 
-An interactive network can be found [here](https://www.lillemets.ee/horizon/network).
+An interactive network can be found [here](https://www.lillemets.ee/horizon2020/network).
+
+# Automatic text summarization
+
+``` {r}
+library('textrank')
+Acts <- readRDS('texts.Rds')
+All <- paste(Acts, collapse = ' ')
+```
 
 # Text statistics
 
